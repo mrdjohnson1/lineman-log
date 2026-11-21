@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lineman Log">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111315">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>Lineman Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: gym-floor logbook, read at arm's length between sets, no fuss.
+   IDEA: a bumper-plate rack: each day is a plate colour, the number you load is huge.
+   PICTURE: today's workout as a stack of cards, target weight set like plate lettering.
+   COLOUR and TYPE: chalk white or iron black ground, plate red accent; Barlow Condensed numerals, Inter text.
+   LAYOUT: sticky week + day picker on top, one column of cards, HIIT timer inline. */
+:root{color-scheme:light dark;
+--bg:light-dark(#f3f2ee,#111315);--card:light-dark(#ffffff,#1b1e21);--ink:light-dark(#15171a,#eef0f2);
+--mute:light-dark(#62666c,#9aa1a8);--line:light-dark(#dcdad3,#2c3034);--acc:light-dark(#c41e2e,#ff4b5a);
+--accbg:light-dark(#fbe7e9,#3a1a1e);--ok:light-dark(#1d7a46,#4cc884);--okbg:light-dark(#e3f4ea,#16301f);
+--in:light-dark(#fffbe8,#24262a)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Inter,system-ui,sans-serif;overflow-x:clip;-webkit-text-size-adjust:100%}
+.num,h1,h2,.big b,.chip,.tab b{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:700}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 8px max(14px,env(safe-area-inset-left));border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+h1{font-size:24px;white-space:nowrap;line-height:1;margin:0;letter-spacing:.01em}
+.pill{font-size:13px;color:var(--mute);white-space:nowrap}
+.pill.warn{color:var(--acc)}
+.weeks{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:6px}
+.weeks::-webkit-scrollbar{display:none}
+.chip{flex:none;min-width:52px;height:40px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font-size:18px;padding:0 10px}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.tab{height:52px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:4px 2px;display:grid;place-items:center;line-height:1.05}
+.tab b{font-size:17px}.tab small{font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tab[aria-pressed=true]{border-color:var(--acc);box-shadow:inset 0 0 0 2px var(--acc)}
+.tab.full small{color:var(--ok);font-weight:600}
+main{padding:14px max(14px,env(safe-area-inset-left)) calc(40px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
+.head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:4px 0 12px}
+.head p{margin:0;color:var(--mute);font-size:14px}
+h2{font-size:44px;line-height:1;margin:2px 0 0;text-wrap:balance}
+.note{background:var(--accbg);border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+.ex{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.ex.done{border-color:var(--ok);background:linear-gradient(var(--okbg),var(--okbg)) top/100% 4px no-repeat,var(--card)}
+.r1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.r1 h3{margin:0;font-size:17px;font-weight:600}
+.r1 span{color:var(--mute);font-size:14px;white-space:nowrap}
+.r2{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,.75fr) 48px;gap:8px;align-items:end;margin-top:10px}
+.big{display:flex;flex-direction:column}
+.big small,label small{font-size:12px;color:var(--mute)}
+.big b{font-size:40px;line-height:.95;color:var(--acc)}
+.big b i{font-style:normal;font-size:18px;color:var(--mute);margin-left:2px}
+.big b.none{color:var(--mute);font-size:24px;line-height:1.6}
+label{display:flex;flex-direction:column;gap:2px}
+input{font:600 20px/1 Inter,sans-serif;height:48px;width:100%;border:1px solid var(--line);border-radius:10px;background:var(--in);color:var(--ink);padding:0 10px;text-align:center}
+input.tin{font:700 34px/1 "Barlow Condensed",Impact,sans-serif;color:var(--acc);background:transparent;border:1px dashed var(--line);text-align:left;padding:0 8px;height:52px}
+input.tin.ovr{border-style:solid;border-color:var(--acc)}
+.lnk{border:0;background:none;color:var(--acc);font:600 12px Inter,sans-serif;padding:0;text-decoration:underline;cursor:pointer;min-height:20px}
+input::placeholder{color:var(--mute);opacity:.45}
+input.txt{font:400 16px Inter,sans-serif;text-align:left;height:44px}
+input:focus-visible,button:focus-visible{outline:3px solid var(--acc);outline-offset:1px}
+.chk{height:48px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--mute);font-size:22px}
+.done .chk{background:var(--ok);color:#fff;border-color:var(--ok)}
+.hint{font-size:13px;color:var(--mute);margin-top:8px}
+.hint b{color:var(--ink)}
+.more{margin-top:8px}.more summary{font-size:13px;color:var(--mute);cursor:pointer;padding:4px 0}
+.simple{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:8px;margin-top:10px}
+.hiit .clock{display:grid;gap:4px;margin:10px 0;background:var(--ink);color:var(--bg);border-radius:12px;padding:12px 14px}
+.clock .num{font-size:clamp(44px,14vw,64px);line-height:.9;font-variant-numeric:tabular-nums}
+.clock div small{display:block;font-size:13px;opacity:.75}
+.clock .seg{font-size:17px;font-weight:600}
+.btns{display:flex;gap:8px;margin-bottom:8px}
+.btn{flex:1;height:46px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 16px Inter,sans-serif}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.iv{list-style:none;margin:0;padding:0;font-size:14px}
+.iv li{display:flex;justify-content:space-between;gap:8px;padding:7px 8px;border-radius:8px}
+.iv li:nth-child(odd){background:color-mix(in srgb,var(--line) 35%,transparent)}
+.iv li.on{background:var(--acc);color:#fff}
+.iv li span:last-child{white-space:nowrap}
+.grp{font:700 22px/1 "Barlow Condensed",Impact,sans-serif;margin:18px 0 8px}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px;align-items:center;padding:10px 12px}
+.srow h3{margin:0;font-size:16px;font-weight:600}.srow small{color:var(--mute);font-size:12px}
+.foot{margin-top:22px;border-top:1px solid var(--line);padding-top:14px;font-size:15px}
+.foot details{margin-bottom:10px}.foot summary{font-weight:600;cursor:pointer;padding:8px 0}
+.foot p{margin:6px 0;color:var(--mute)}
+textarea{width:100%;height:140px;font:13px/1.4 ui-monospace,monospace;border:1px solid var(--line);border-radius:10px;background:var(--in);color:var(--ink);padding:8px}
+@media(max-width:380px){h2{font-size:36px}.big b{font-size:34px}.r2{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,.8fr) 44px}}
+@media(prefers-reduced-motion:no-preference){.ex{transition:border-color .2s}}
+.ex label.hab{display:flex;flex-direction:row;justify-content:flex-start;text-align:left;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px;color:var(--ink)}
+.ex label.hab input{width:24px;height:24px;min-height:0;flex:none;margin:0;padding:0}
+.z2 select{width:100%;min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:16px Inter,sans-serif;padding:0 10px;margin:8px 0 4px}
+.bwsum{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.bwsum svg{width:100%;height:90px;margin-top:8px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="bar"><h1>Lineman Log</h1><span class="pill" id="status">Loading…</span></div>
+  <div class="weeks" id="weeks" role="group" aria-label="Week"></div>
+  <div class="tabs" id="tabs" role="group" aria-label="Day"></div>
+</header>
+<main>
+  <div id="day"></div>
+  <section class="foot">
+    <details><summary>The plan</summary>
+      <p>18 weeks, Monday, Nov 30, 2026 to Sunday, Apr 4, 2027, ending right before spring football. Lift A, B and C on Mon, Wed and Fri; short speed and conditioning on Tue and Thu; optional easy Zone 2 rides on Sat and Sun.</p>
+      <p>Foundation (Weeks 1 to 5): learn the lifts, higher reps. Strength (Weeks 7 to 11): heavier, fewer reps. Power (Weeks 13 to 17): heaviest work plus more jumps and throws. Weeks 6, 12 and 18 are lighter weeks so his body can recover; Week 18 is the taper into spring practice.</p>
+      <p>Each workout takes about 45 to 60 minutes. Tue and Thu sessions are about 30 minutes.</p>
+    </details>
+    <details><summary>How target weights work</summary>
+      <p>Before Week 1, tap Start and enter a starting weight for each lift. After that, the big red number is the target. Tap it to type your own; tap Reset to go back to automatic.</p>
+      <p>Hit the top of the rep range on every set with good form and the next target goes up 5 lb; otherwise it stays the same. Log the reps from his weakest set. Lighter weeks drop to about 80%. The first week of a new phase starts about 10% heavier for fewer reps.</p>
+      <p>Dumbbell weights are per dumbbell. Box jumps, broad jumps and med ball passes have no weight: explode on every rep and rest fully.</p>
+    </details>
+    <details><summary>Safety</summary>
+      <p>Learn the barbell lifts (squat, bench, RDL) from a qualified coach or YMCA trainer before going heavy, and always use a spotter or safety bars on squat and bench. Form beats weight every time.</p>
+      <p>Stop a set if form breaks down, and stop the session for sharp or joint pain. Check the YMCA's rules for 16-year-olds in the weight room.</p>
+      <p>He's still growing, so this is not a diet. He should eat enough to train hard and recover: regular meals with protein, fruits and vegetables. The daily habits cover the basics. Talk with his doctor about weight goals.</p>
+    </details>
+    <details><summary>Body weight and habits</summary>
+      <p>Weigh in once a month on the Body tab (Nov 30, Jan 4, Feb 1, Mar 1, Apr 5). There are no targets. Each day also has 5 habits to check off: breakfast, protein at every meal, water, 8+ hours of sleep and no sugary drinks.</p>
+    </details>
+    <details><summary>Weekend Zone 2 rides</summary>
+      <p>Sat and Sun have an optional TrainerRoad ride: Taku -1 (30 min), Lazy Mountain -2 (45 min), Recess -4 (45 min), Lazy Mountain (60 min) or Pettit (60 min). Ride easy enough to talk in full sentences. Workout names in TrainerRoad's library can change; pick a similar Endurance ride if one isn't there.</p>
+    </details>
+    <details open><summary>Back up your log</summary>
+      <p>The log is saved only on this phone. Save a backup every week or two, and before deleting the app or clearing Safari data. Either file type restores everything; the .csv also opens in Google Sheets or Excel. Saving opens your device's save or share options: on iPhone choose Save to Files (or Google Drive, Dropbox and similar), on Android pick Drive or Files.</p>
+      <div class="btns"><button class="btn pri" id="bk">Save backup (.json)</button><button class="btn pri" id="bkc">Save backup (.csv)</button></div>
+      <div class="btns"><button class="btn" id="copy">Copy as CSV</button></div>
+      <p>To restore, tap Restore from backup and browse to the .json or .csv file you saved (Files, iCloud Drive, Google Drive or Downloads). This replaces everything currently in the app.</p>
+      <div class="btns"><label class="btn" style="display:grid;place-items:center;cursor:pointer">Restore from backup<input type="file" id="rs" accept=".json,.csv,application/json,text/csv,text/plain" hidden></label></div>
+      <p id="bkmsg" role="status"></p>
+      <textarea id="csv" hidden readonly aria-label="Log as CSV"></textarea>
+    </details>
+  </section>
+</main>
+<script>
+{
+const P = {"weeks": [[{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "3 x 8", "kind": "lift"}, {"name": "Bench Press", "target": "3 x 8", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "3 x 10-12", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 8 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 30-45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "6 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "4 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "4 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "6 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "3 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "3 x 8", "kind": "lift"}, {"name": "Incline DB Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Lat Pulldown", "target": "3 x 10-12", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Farmer Carry", "target": "3 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "6 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "6 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "8 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "3 x 10", "kind": "lift"}, {"name": "DB Bench Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 8 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "3 x 10-12", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "3 x 8", "kind": "lift"}, {"name": "Bench Press", "target": "3 x 8", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "3 x 10-12", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 8 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 30-45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "6 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "4 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "4 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "6 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "3 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "3 x 8", "kind": "lift"}, {"name": "Incline DB Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Lat Pulldown", "target": "3 x 10-12", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Farmer Carry", "target": "3 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "6 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "6 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "8 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "3 x 10", "kind": "lift"}, {"name": "DB Bench Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 8 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "3 x 10-12", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "3 x 8", "kind": "lift"}, {"name": "Bench Press", "target": "3 x 8", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "3 x 10-12", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 8 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 30-45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "6 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "4 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "4 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "6 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "3 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "3 x 8", "kind": "lift"}, {"name": "Incline DB Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Lat Pulldown", "target": "3 x 10-12", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Farmer Carry", "target": "3 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "6 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "6 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "8 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "3 x 10", "kind": "lift"}, {"name": "DB Bench Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 8 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "3 x 10-12", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "3 x 8", "kind": "lift"}, {"name": "Bench Press", "target": "3 x 8", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "3 x 10-12", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 8 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 30-45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "6 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "4 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "4 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "6 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "3 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "3 x 8", "kind": "lift"}, {"name": "Incline DB Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Lat Pulldown", "target": "3 x 10-12", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Farmer Carry", "target": "3 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "6 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "6 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "8 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "3 x 10", "kind": "lift"}, {"name": "DB Bench Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 8 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "3 x 10-12", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "3 x 8", "kind": "lift"}, {"name": "Bench Press", "target": "3 x 8", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "3 x 10-12", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 8 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 30-45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "6 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "4 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "4 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "6 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "3 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "3 x 8", "kind": "lift"}, {"name": "Incline DB Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Lat Pulldown", "target": "3 x 10-12", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Farmer Carry", "target": "3 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "6 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "6 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "8 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "3 x 10", "kind": "lift"}, {"name": "DB Bench Press", "target": "3 x 10-12", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 8 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "3 x 10-12", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Lighter week: same moves, lighter weights and fewer sets so his body can recover and adapt.", "items": [{"name": "Box Jump", "target": "2 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "2 x 5 light", "kind": "lift"}, {"name": "Bench Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "2 x 5 light", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "2 x 5 light", "kind": "lift"}, {"name": "Plank", "target": "2 x 30-45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Lighter week: same moves, lighter weights and fewer sets so his body can recover and adapt.", "items": [{"name": "Dynamic warm-up", "target": "5 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "3 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "2 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "2 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "3 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Lighter week: same moves, lighter weights and fewer sets so his body can recover and adapt.", "items": [{"name": "Med Ball Chest Pass", "target": "2 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "2 x 5 light", "kind": "lift"}, {"name": "Incline DB Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Lat Pulldown", "target": "2 x 5 light", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Farmer Carry", "target": "2 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "2 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Lighter week: same moves, lighter weights and fewer sets so his body can recover and adapt.", "items": [{"name": "Dynamic warm-up", "target": "5 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "3 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "3 reps", "kind": "cardio"}, {"name": "Carioca", "target": "2 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "4 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Lighter week: same moves, lighter weights and fewer sets so his body can recover and adapt.", "items": [{"name": "Broad Jump", "target": "2 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "DB Bench Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "2 x 5 light", "kind": "lift"}, {"name": "Seated Cable Row", "target": "2 x 5 light", "kind": "lift"}, {"name": "Face Pull", "target": "2 x 5 light", "kind": "lift"}, {"name": "Dead Bug", "target": "2 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "4 x 5", "kind": "lift"}, {"name": "Bench Press", "target": "4 x 5", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "4 x 8-10", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 8 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "8 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "5 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "6 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "8 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "3 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "4 x 6", "kind": "lift"}, {"name": "Incline DB Press", "target": "4 x 8-10", "kind": "lift"}, {"name": "Lat Pulldown", "target": "4 x 8-10", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 8-10", "kind": "lift"}, {"name": "Farmer Carry", "target": "3 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "8 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "8 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "10 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "4 x 8", "kind": "lift"}, {"name": "DB Bench Press", "target": "4 x 8-10", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 8 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "4 x 8-10", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "4 x 5", "kind": "lift"}, {"name": "Bench Press", "target": "4 x 5", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "4 x 8-10", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 8 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "8 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "5 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "6 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "8 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "3 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "4 x 6", "kind": "lift"}, {"name": "Incline DB Press", "target": "4 x 8-10", "kind": "lift"}, {"name": "Lat Pulldown", "target": "4 x 8-10", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 8-10", "kind": "lift"}, {"name": "Farmer Carry", "target": "3 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "8 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "8 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "10 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "4 x 8", "kind": "lift"}, {"name": "DB Bench Press", "target": "4 x 8-10", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 8 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "4 x 8-10", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "4 x 5", "kind": "lift"}, {"name": "Bench Press", "target": "4 x 5", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "4 x 8-10", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 8 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "8 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "5 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "6 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "8 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "3 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "4 x 6", "kind": "lift"}, {"name": "Incline DB Press", "target": "4 x 8-10", "kind": "lift"}, {"name": "Lat Pulldown", "target": "4 x 8-10", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 8-10", "kind": "lift"}, {"name": "Farmer Carry", "target": "3 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "8 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "8 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "10 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "4 x 8", "kind": "lift"}, {"name": "DB Bench Press", "target": "4 x 8-10", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 8 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "4 x 8-10", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "4 x 5", "kind": "lift"}, {"name": "Bench Press", "target": "4 x 5", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "4 x 8-10", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 8 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "8 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "5 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "6 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "8 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "3 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "4 x 6", "kind": "lift"}, {"name": "Incline DB Press", "target": "4 x 8-10", "kind": "lift"}, {"name": "Lat Pulldown", "target": "4 x 8-10", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 8-10", "kind": "lift"}, {"name": "Farmer Carry", "target": "3 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "8 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "8 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "10 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "4 x 8", "kind": "lift"}, {"name": "DB Bench Press", "target": "4 x 8-10", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 8 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "4 x 8-10", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "4 x 5", "kind": "lift"}, {"name": "Bench Press", "target": "4 x 5", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "4 x 8-10", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 8 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "8 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "5 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "6 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "8 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "3 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "4 x 6", "kind": "lift"}, {"name": "Incline DB Press", "target": "4 x 8-10", "kind": "lift"}, {"name": "Lat Pulldown", "target": "4 x 8-10", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 8-10", "kind": "lift"}, {"name": "Farmer Carry", "target": "3 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "8 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "8 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "10 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "3 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "4 x 8", "kind": "lift"}, {"name": "DB Bench Press", "target": "4 x 8-10", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 8 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "4 x 8-10", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Lighter week: same moves, lighter weights and fewer sets so his body can recover and adapt.", "items": [{"name": "Box Jump", "target": "2 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "2 x 5 light", "kind": "lift"}, {"name": "Bench Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "2 x 5 light", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "2 x 5 light", "kind": "lift"}, {"name": "Plank", "target": "2 x 45 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Lighter week: same moves, lighter weights and fewer sets so his body can recover and adapt.", "items": [{"name": "Dynamic warm-up", "target": "5 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "4 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "2 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "3 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "4 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Lighter week: same moves, lighter weights and fewer sets so his body can recover and adapt.", "items": [{"name": "Med Ball Chest Pass", "target": "2 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "2 x 5 light", "kind": "lift"}, {"name": "Incline DB Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Lat Pulldown", "target": "2 x 5 light", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Farmer Carry", "target": "2 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "2 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Lighter week: same moves, lighter weights and fewer sets so his body can recover and adapt.", "items": [{"name": "Dynamic warm-up", "target": "5 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "4 reps", "kind": "cardio"}, {"name": "Carioca", "target": "2 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "5 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Lighter week: same moves, lighter weights and fewer sets so his body can recover and adapt.", "items": [{"name": "Broad Jump", "target": "2 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "DB Bench Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "2 x 5 light", "kind": "lift"}, {"name": "Seated Cable Row", "target": "2 x 5 light", "kind": "lift"}, {"name": "Face Pull", "target": "2 x 5 light", "kind": "lift"}, {"name": "Dead Bug", "target": "2 x 8 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "4 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "5 x 3", "kind": "lift"}, {"name": "Bench Press", "target": "5 x 3", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "4 x 6-8", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 6 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 45-60 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "8 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "6 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "6 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "10 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "4 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "4 x 5", "kind": "lift"}, {"name": "Incline DB Press", "target": "4 x 6-8", "kind": "lift"}, {"name": "Lat Pulldown", "target": "4 x 6-8", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 6-8", "kind": "lift"}, {"name": "Farmer Carry", "target": "4 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "8 x 20 yd, heavier", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "8 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "12 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "4 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "4 x 6", "kind": "lift"}, {"name": "DB Bench Press", "target": "4 x 6-8", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 6 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "4 x 6-8", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 10 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "4 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "5 x 3", "kind": "lift"}, {"name": "Bench Press", "target": "5 x 3", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "4 x 6-8", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 6 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 45-60 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "8 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "6 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "6 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "10 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "4 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "4 x 5", "kind": "lift"}, {"name": "Incline DB Press", "target": "4 x 6-8", "kind": "lift"}, {"name": "Lat Pulldown", "target": "4 x 6-8", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 6-8", "kind": "lift"}, {"name": "Farmer Carry", "target": "4 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "8 x 20 yd, heavier", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "8 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "12 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "4 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "4 x 6", "kind": "lift"}, {"name": "DB Bench Press", "target": "4 x 6-8", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 6 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "4 x 6-8", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 10 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "4 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "5 x 3", "kind": "lift"}, {"name": "Bench Press", "target": "5 x 3", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "4 x 6-8", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 6 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 45-60 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "8 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "6 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "6 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "10 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "4 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "4 x 5", "kind": "lift"}, {"name": "Incline DB Press", "target": "4 x 6-8", "kind": "lift"}, {"name": "Lat Pulldown", "target": "4 x 6-8", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 6-8", "kind": "lift"}, {"name": "Farmer Carry", "target": "4 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "8 x 20 yd, heavier", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "8 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "12 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "4 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "4 x 6", "kind": "lift"}, {"name": "DB Bench Press", "target": "4 x 6-8", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 6 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "4 x 6-8", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 10 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "4 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "5 x 3", "kind": "lift"}, {"name": "Bench Press", "target": "5 x 3", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "4 x 6-8", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 6 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 45-60 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "8 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "6 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "6 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "10 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "4 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "4 x 5", "kind": "lift"}, {"name": "Incline DB Press", "target": "4 x 6-8", "kind": "lift"}, {"name": "Lat Pulldown", "target": "4 x 6-8", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 6-8", "kind": "lift"}, {"name": "Farmer Carry", "target": "4 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "8 x 20 yd, heavier", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "8 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "12 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "4 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "4 x 6", "kind": "lift"}, {"name": "DB Bench Press", "target": "4 x 6-8", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 6 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "4 x 6-8", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 10 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Squat, bench and row. Rest 2 to 3 minutes on squat and bench, 60 to 90 seconds on the rest.", "items": [{"name": "Box Jump", "target": "4 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "5 x 3", "kind": "lift"}, {"name": "Bench Press", "target": "5 x 3", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "4 x 6-8", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "3 x 6 each", "kind": "lift"}, {"name": "Plank", "target": "3 x 45-60 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Short and sharp: full rest between sprints and agility reps. Quality over fatigue.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "8 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "6 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "6 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "10 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Hinge, incline and pull. Rest 2 to 3 minutes on RDL, 60 to 90 seconds on the rest.", "items": [{"name": "Med Ball Chest Pass", "target": "4 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "4 x 5", "kind": "lift"}, {"name": "Incline DB Press", "target": "4 x 6-8", "kind": "lift"}, {"name": "Lat Pulldown", "target": "4 x 6-8", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "3 x 6-8", "kind": "lift"}, {"name": "Farmer Carry", "target": "4 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "3 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Get-off and drive work. Full rest between reps; stop the session if form breaks down.", "items": [{"name": "Dynamic warm-up", "target": "10 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "8 x 20 yd, heavier", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "8 reps", "kind": "cardio"}, {"name": "Carioca", "target": "4 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "12 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Leg press, presses and rows. Rest 90 seconds to 2 minutes.", "items": [{"name": "Broad Jump", "target": "4 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "4 x 6", "kind": "lift"}, {"name": "DB Bench Press", "target": "4 x 6-8", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "3 x 6 each", "kind": "lift"}, {"name": "Seated Cable Row", "target": "4 x 6-8", "kind": "lift"}, {"name": "Face Pull", "target": "3 x 12-15", "kind": "lift"}, {"name": "Dead Bug", "target": "3 x 10 each", "kind": "lift"}]}], [{"day": "MONDAY", "workout": "LIFT A", "note": "Final lighter week before spring practice: stay sharp, stay fresh.", "items": [{"name": "Box Jump", "target": "2 x 3", "kind": "lift"}, {"name": "Back Squat", "target": "2 x 5 light", "kind": "lift"}, {"name": "Bench Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Chest-Supported DB Row", "target": "2 x 5 light", "kind": "lift"}, {"name": "DB Walking Lunge", "target": "2 x 5 light", "kind": "lift"}, {"name": "Plank", "target": "2 x 45-60 sec", "kind": "lift"}]}, {"day": "TUESDAY", "workout": "SPEED A", "note": "Final lighter week before spring practice: stay sharp, stay fresh.", "items": [{"name": "Dynamic warm-up", "target": "5 min", "kind": "cardio"}, {"name": "Stance starts (3-point)", "target": "4 x 10 yd", "kind": "cardio"}, {"name": "Lateral shuffle", "target": "3 x 10 yd each way", "kind": "cardio"}, {"name": "Pro agility (5-10-5)", "target": "3 reps", "kind": "cardio"}, {"name": "Bike intervals", "target": "5 x 20 sec hard, 40 sec easy", "kind": "cardio"}]}, {"day": "WEDNESDAY", "workout": "LIFT B", "note": "Final lighter week before spring practice: stay sharp, stay fresh.", "items": [{"name": "Med Ball Chest Pass", "target": "2 x 5", "kind": "lift"}, {"name": "Romanian Deadlift", "target": "2 x 5 light", "kind": "lift"}, {"name": "Incline DB Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Lat Pulldown", "target": "2 x 5 light", "kind": "lift"}, {"name": "Seated DB Shoulder Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Farmer Carry", "target": "2 x 40 yd", "kind": "lift"}, {"name": "Pallof Press", "target": "2 x 10 each", "kind": "lift"}]}, {"day": "THURSDAY", "workout": "SPEED B", "note": "Final lighter week before spring practice: stay sharp, stay fresh.", "items": [{"name": "Dynamic warm-up", "target": "5 min", "kind": "cardio"}, {"name": "Sled push (or incline treadmill push)", "target": "4 x 20 yd, heavier", "kind": "cardio"}, {"name": "Drop step + 10-yd sprint", "target": "4 reps", "kind": "cardio"}, {"name": "Carioca", "target": "2 x 20 yd", "kind": "cardio"}, {"name": "20-yd sprints, walk back", "target": "6 reps", "kind": "cardio"}]}, {"day": "FRIDAY", "workout": "LIFT C", "note": "Final lighter week before spring practice: stay sharp, stay fresh.", "items": [{"name": "Broad Jump", "target": "2 x 3", "kind": "lift"}, {"name": "Leg Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "DB Bench Press", "target": "2 x 5 light", "kind": "lift"}, {"name": "Bulgarian Split Squat", "target": "2 x 5 light", "kind": "lift"}, {"name": "Seated Cable Row", "target": "2 x 5 light", "kind": "lift"}, {"name": "Face Pull", "target": "2 x 5 light", "kind": "lift"}, {"name": "Dead Bug", "target": "2 x 10 each", "kind": "lift"}]}]], "progression": [{"name": "Back Squat", "inc": 5, "back": 1, "dp": true}, {"name": "Bench Press", "inc": 5, "back": 1, "dp": true}, {"name": "Chest-Supported DB Row", "inc": 5, "back": 1, "dp": true}, {"name": "DB Walking Lunge", "inc": 5, "back": 1, "dp": true}, {"name": "Romanian Deadlift", "inc": 5, "back": 1, "dp": true}, {"name": "Incline DB Press", "inc": 5, "back": 1, "dp": true}, {"name": "Lat Pulldown", "inc": 5, "back": 1, "dp": true}, {"name": "Seated DB Shoulder Press", "inc": 5, "back": 1, "dp": true}, {"name": "Leg Press", "inc": 5, "back": 1, "dp": true}, {"name": "DB Bench Press", "inc": 5, "back": 1, "dp": true}, {"name": "Bulgarian Split Squat", "inc": 5, "back": 1, "dp": true}, {"name": "Seated Cable Row", "inc": 5, "back": 1, "dp": true}, {"name": "Face Pull", "inc": 5, "back": 1, "dp": true}], "deload": [6, 12, 18], "phaseStart": [7, 13]};
+const prog = Object.fromEntries(P.progression.map(p => [p.name, p]));
+const SHORT = {MONDAY:"Mon",TUESDAY:"Tue",WEDNESDAY:"Wed",THURSDAY:"Thu",FRIDAY:"Fri",SATURDAY:"Sat",SUNDAY:"Sun"};
+const SHORTW = {"LIFT A":"Lift A","SPEED A":"Speed","LIFT B":"Lift B","SPEED B":"Speed","LIFT C":"Lift C"};
+const NICE = w => w.split(" ").map(x => x[0] + x.slice(1).toLowerCase()).join(" ");
+const DL = new Set(P.deload), PH = new Set(P.phaseStart);
+const phaseName = w => w === 18 ? "Taper" : w <= 6 ? "Foundation" : w <= 12 ? "Strength" : "Power";
+const START = new Date(2026, 10, 30);
+const weekDate = (w, d = 0) => { const t = new Date(START); t.setDate(t.getDate() + (w - 1) * 7 + d); return t; };
+const dstr = t => t.toLocaleDateString(undefined, {month: "short", day: "numeric"});
+const isoD = t => `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+const calWeek = () => Math.floor((Date.now() - START) / 864e5 / 7) + 1;
+const r5 = v => Math.max(5, Math.round(v / 5) * 5);
+const DAYN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const HABITS = ["Ate breakfast", "Protein at every meal", "Drank water through the day", "8+ hours of sleep last night", "No sugary drinks (soda, sweet tea, energy drinks)"];
+const Z2 = [["taku-1", "Taku -1", "30 min, IF 0.52"], ["lazy-mountain-2", "Lazy Mountain -2", "45 min, IF 0.49"], ["recess-4", "Recess -4", "45 min, IF 0.50"], ["lazy-mountain", "Lazy Mountain", "60 min, IF 0.49"], ["pettit", "Pettit", "60 min, easy"]];
+const Z2BY = Object.fromEntries(Z2.map(x => [x[0], x]));
+const WEIGH = [["2026-11-30", "Start", "Mon, Nov 30"], ["2027-01-04", "January", "Mon, Jan 4"], ["2027-02-01", "February", "Mon, Feb 1"], ["2027-03-01", "March", "Mon, Mar 1"], ["2027-04-05", "April", "Mon, Apr 5"]];
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+const fmt = n => (Math.round(n * 10) / 10).toString();
+const topReps = t => { const m = /(\d+)\D*$/.exec(t || ""); return m ? +m[1] : 0; };
+
+let logs = {}, ui = {week: Math.min(18, Math.max(1, calWeek())), day: defaultDay()}, dirty = false;
+function defaultDay(){ const d = new Date().getDay(); return d === 0 ? 6 : d - 1; }
+try { const s = JSON.parse(localStorage.getItem("linemanlog") || "null"); if (s) { logs = s.logs || {}; ui = Object.assign(ui, s.ui || {}); } } catch (e) {}
+if (!(ui.day >= 0 && ui.day <= 6)) ui.day = 0;
+if (!(ui.week >= -1 && ui.week <= 18)) ui.week = 1;
+
+const key = (w, name, d, k) => k === "hiit" ? `${w}|${d}|HIIT` : `${w}|${name}`;
+const memo = new Map();
+function target(w, name){
+  const ck = w + "|" + name; if (memo.has(ck)) return memo.get(ck);
+  const ov = +(logs[`${w}|${name}`] || {}).t;
+  if (ov > 0) { memo.set(ck, ov); return ov; }
+  let out = null; const p = prog[name];
+  if (p && w === 1) { const st = +(logs[`start|${name}`] || {}).w; out = st > 0 ? st : null; }
+  else if (p && DL.has(w)) { const b = target(w - 1, name); out = b ? r5(b * 0.8) : null; }
+  else if (p) {
+    const s = DL.has(w - 1) ? w - 2 : w - 1, e = logs[`${s}|${name}`] || {};
+    const base = +e.w > 0 ? +e.w : target(s, name);
+    if (base) {
+      if (PH.has(w)) out = r5(base * 1.1);
+      else { const top = topReps(findTarget(s, name)); out = (top > 0 && +e.r >= top) ? base + p.inc : base; }
+    }
+  }
+  memo.set(ck, out); return out;
+}
+function findTarget(w, name){
+  for (const d of P.weeks[w - 1]) for (const it of d.items) if (it.name === name) return it.target;
+  return "";
+}
+function lastTime(w, name){
+  const p = prog[name]; if (!p || w < 2) return null;
+  const s = DL.has(w - 1) && !DL.has(w) ? w - 2 : w - 1;
+  const e = logs[`${s}|${name}`]; return e && (+e.w || +e.r) ? e : null;
+}
+
+const $ = id => document.getElementById(id);
+function renderNav(){
+  $("weeks").innerHTML = `<button class="chip" data-w="0" aria-pressed="${ui.week === 0}">Start</button><button class="chip" data-w="-1" aria-pressed="${ui.week === -1}">Body</button>` + P.weeks.map((_, i) => `<button class="chip" data-w="${i + 1}" aria-pressed="${ui.week === i + 1}">Wk ${i + 1}</button>`).join("");
+  $("tabs").hidden = ui.week <= 0;
+  if (ui.week <= 0) { $("tabs").innerHTML = ""; } else $("tabs").innerHTML = P.weeks[ui.week - 1].map((d, i) => {
+    const lifts = d.items.filter(x => x.kind !== "interval");
+    const done = lifts.filter(x => (logs[key(ui.week, x.name, i, x.kind)] || {}).d).length;
+    const full = done === lifts.length;
+    return `<button class="tab${full ? " full" : ""}" data-d="${i}" aria-pressed="${ui.day === i}"><b>${SHORT[d.day]}</b><small>${full ? "Done" : SHORTW[d.workout]}</small></button>`;
+  }).join("") + [5, 6].map(i => { const z = (logs[`${ui.week}|${i}|Z2`] || {}).d;
+    return `<button class="tab${z ? " full" : ""}" data-d="${i}" aria-pressed="${ui.day === i}"><b>${i === 5 ? "Sat" : "Sun"}</b><small>${z ? "Rode" : "Z2"}</small></button>`; }).join("");
+  const c = $("weeks").querySelector('[aria-pressed="true"]'); if (c) c.scrollIntoView({inline: "center", block: "nearest"});
+}
+function renderDay(){
+  memo.clear();
+  if (ui.week === 0) return renderStart();
+  if (ui.week === -1) return renderBody();
+  const w = ui.week, t = weekDate(w, ui.day), head = `<div class="head"><div><p>${DAYN[ui.day]}, ${dstr(t)} | Week ${w}, ${phaseName(w)}</p>`;
+  if (ui.day >= 5) { $("day").innerHTML = head + `<h2>Zone 2 Ride</h2></div></div><div class="note">Optional easy ride. Rest is part of the plan too.</div>` + z2Card(w) + habitCard(t); return; }
+  const d = P.weeks[w - 1][ui.day];
+  let h = head + `<h2>${esc(NICE(d.workout))}</h2></div></div>`;
+  if (d.note) h += `<div class="note">${esc(d.note)}</div>`;
+  h += d.items.map(it => card(w, ui.day, it)).join("");
+  $("day").innerHTML = h + habitCard(t);
+}
+function card(w, di, it){
+  const k = key(w, it.name, di, it.kind), e = logs[k] || {}, dn = e.d ? " done" : "";
+  const kk = esc(k);
+  if (it.kind === "hiit") return hiitCard(it, kk, e, dn);
+  if (it.kind === "cardio") return `<article class="ex${dn}" data-k="${kk}"><div class="r1"><h3>${esc(it.name)}</h3><span>${esc(it.target)}</span></div>
+    <div class="simple"><input class="txt" data-f="n" placeholder="Notes (minutes, pace)" value="${esc(e.n)}" aria-label="Notes"><button class="chk" data-f="d" aria-label="Mark done">✓</button></div></article>`;
+  if (!prog[it.name] && it.name !== "Farmer Carry") return `<article class="ex${dn}" data-k="${kk}"><div class="r1"><h3>${esc(it.name)}</h3><span>${esc(it.target)}</span></div>
+    <div class="hint" style="margin:0 0 8px">${/Jump|Pass/.test(it.name) ? "Power move: explode every rep, full rest between sets." : "Core: slow and controlled, brace like you're about to be hit."}</div>
+    <div class="simple"><input class="txt" data-f="n" placeholder="Notes" value="${esc(e.n)}" aria-label="Notes"><button class="chk" data-f="d" aria-label="Mark done">✓</button></div></article>`;
+  const p = prog[it.name], t = target(w, it.name), lt = lastTime(w, it.name), top = topReps(it.target);
+  const ovr = +e.t > 0; let hint = "";
+  if (p) {
+    const first = w === 1;
+    if (first) hint = t && !ovr ? "Starting weight" : (t ? "" : "Set a starting weight on the Start screen");
+    if (ovr) hint += `${hint ? ". " : ""}Your target. Tap Reset for automatic`;
+    else if (DL.has(w)) hint += `${hint ? ". " : ""}Lighter week: about 80% of last week. Smooth, fast reps`;
+    else if (PH.has(w)) hint += `${hint ? ". " : ""}New phase: about 10% heavier for fewer reps`;
+    else if (p.dp) hint += `${hint ? ". " : ""}Hit <b>${top}</b> reps on every set with good form to move up 5 lb`;
+    else if (ovr) hint += "Your target. Tap Reset for automatic";
+    else if (t && !first) hint += `+${p.inc} lb from last time`;
+    if (lt) hint += ` · Last: <b>${lt.w ? fmt(+lt.w) + " lb" : "-"}${lt.r ? " x " + lt.r : ""}</b>`;
+  } else hint = /Jump|Pass/.test(it.name) ? "Power move: explode every rep, full rest between sets. No weight to log." : it.name === "Farmer Carry" ? "Log the dumbbell weight per hand. Go heavier when 40 yd feels easy." : "Log reps, time or notes.";
+  return `<article class="ex${dn}" data-k="${kk}"><div class="r1"><h3>${esc(it.name)}</h3><span>${esc(it.target)}</span></div>
+  <div class="r2"><label class="big"><small>Target${ovr ? ' · <button class="lnk" data-f="tr">Reset</button>' : ""}</small><input class="tin${ovr ? " ovr" : ""}" data-f="t" inputmode="decimal" value="${t ? fmt(t) : ""}" placeholder="${p ? "Set" : "-"}" aria-label="Target weight"></label>
+  <label><small>Weight</small><input data-f="w" inputmode="decimal" placeholder="${t ? fmt(t) : "lb"}" value="${esc(e.w)}"></label>
+  <label><small>Reps</small><input data-f="r" inputmode="numeric" placeholder="${top || ""}" value="${esc(e.r)}"></label>
+  <button class="chk" data-f="d" aria-label="Mark done">✓</button></div>
+  <div class="hint">${hint}</div>
+  <details class="more"${e.n ? " open" : ""}><summary>Notes</summary><input class="txt" data-f="n" value="${esc(e.n)}" aria-label="Notes"></details></article>`;
+}
+
+function z2Card(w){
+  const k = `${w}|${ui.day}|Z2`, e = logs[k] || {}, x = Z2BY[e.r], dn = e.d ? " done" : "";
+  return `<h3 class="grp">Zone 2 Ride (TrainerRoad)</h3><article class="ex z2${dn}" data-k="${k}">
+    <select data-z2="${k}" aria-label="Choose a TrainerRoad ride"><option value="">Pick a ride (optional)</option>${Z2.map(([id, n, dd]) => `<option value="${id}"${e.r === id ? " selected" : ""}>${n} (${dd})</option>`).join("")}</select>
+    <div class="hint">${x ? `${x[1]}: ${x[2]}. ` : `Suggested: ${ui.day === 5 ? "Lazy Mountain -2 on Saturday" : "Taku -1 on Sunday"}. `}Easy pace: he should be able to talk in full sentences. Skip it if his legs feel beat up.</div>
+    <div class="simple"><input class="txt" data-f="n" placeholder="Notes (avg HR, how it felt)" value="${esc(e.n)}" aria-label="Notes"><button class="chk" data-f="d" aria-label="Mark done">✓</button></div></article>`;
+}
+function habitCard(t){
+  const date = isoD(t), got = HABITS.filter((_, i) => (logs[`hab|${date}|${i}`] || {}).d).length;
+  return `<h3 class="grp">Daily habits (${got} of ${HABITS.length})</h3><article class="ex">` + HABITS.map((hb, i) => `<label class="hab"><input type="checkbox" data-hab="hab|${date}|${i}"${(logs[`hab|${date}|${i}`] || {}).d ? " checked" : ""}> ${hb}</label>`).join("") + `</article>`;
+}
+function renderBody(){
+  const pts = WEIGH.map(([dt], i) => [i, +(logs[`bw|${dt}`] || {}).w]).filter(p => p[1] > 0);
+  let h = `<div class="head"><div><p>Once a month</p><h2>Body Weight</h2></div></div>
+  <div class="note">Weigh in once a month, first thing in the morning on the listed Monday. No targets: at 16 he's still growing, so the goal is getting stronger and faster while his waist and conditioning improve, not hitting a number on the scale.</div>`;
+  if (pts.length) {
+    const lo = Math.min(...pts.map(p => p[1])) - 3, hi = Math.max(...pts.map(p => p[1])) + 3, X = i => 10 + i * 70, Y = v => 8 + (hi - v) / (hi - lo || 1) * 74;
+    const ch = pts.length > 1 ? pts[pts.length - 1][1] - pts[0][1] : 0;
+    h += `<div class="bwsum"><b>${fmt(pts[pts.length - 1][1])} lb</b> <small>(${WEIGH[pts[pts.length - 1][0]][1]})</small>${pts.length > 1 ? `<br><small>Change since start: ${ch > 0 ? "+" : ""}${fmt(ch)} lb</small>` : ""}
+    <svg viewBox="0 0 300 90" role="img" aria-label="Monthly body weight"><polyline points="${pts.map(p => `${X(p[0])},${Y(p[1]).toFixed(1)}`).join(" ")}" fill="none" stroke="currentColor" stroke-width="2.5"/>${pts.map(p => `<circle cx="${X(p[0])}" cy="${Y(p[1]).toFixed(1)}" r="4" fill="currentColor"/>`).join("")}</svg></div>`;
+  }
+  h += WEIGH.map(([dt, lab, when]) => `<article class="ex srow" data-k="bw|${dt}"><div><h3>${lab}</h3><small>${when}</small></div><input data-f="w" inputmode="decimal" placeholder="lb" value="${esc((logs[`bw|${dt}`] || {}).w)}" aria-label="${lab} body weight"></article>`).join("");
+  $("day").innerHTML = h;
+}
+function renderStart(){
+  const order = ["LIFT A", "LIFT B", "LIFT C"], g = {}, firstWk = {};
+  P.weeks.slice(0, 3).forEach((wk, wi) => wk.forEach(d => d.items.forEach(it => {
+    if (it.kind === "lift" && prog[it.name] && !(it.name in firstWk)) { firstWk[it.name] = wi + 1; (g[d.workout] = g[d.workout] || []).push(it.name); }
+  })));
+  let h = `<div class="head"><div><p>Before Week 1</p><h2>Starting Weights</h2></div></div>
+  <div class="note">Pick a starting weight he can lift for every rep with perfect form and 2 to 3 reps left in the tank. Start light; it's better to move up fast than to grind. It becomes Week 1's target, and later weeks build from what he logs. Dumbbell lifts are the weight of one dumbbell.</div>`;
+  for (const o of order) if (g[o]) {
+    h += `<h3 class="grp">${esc(NICE(o))}</h3>` + g[o].map(n => {
+      const e = logs[`start|${n}`] || {};
+      return `<article class="ex srow" data-k="${esc("start|" + n)}"><div><h3>${esc(n)}</h3><small>${firstWk[n] > 1 ? "First used Week " + firstWk[n] : "Week 1"}</small></div>
+      <input data-f="w" inputmode="decimal" placeholder="lb" value="${esc(e.w)}" aria-label="${esc(n)} starting weight"></article>`;
+    }).join("");
+  }
+  $("day").innerHTML = h;
+}
+
+/* HIIT interval timer */
+const segs = [];
+function buildSegs(intervals){
+  segs.length = 0;
+  for (const iv of intervals) { const m = /Min (\d+)-(\d+)/.exec(iv.name); if (m) segs.push({a: +m[1] * 60, b: +m[2] * 60, name: iv.name, t: iv.target}); }
+}
+let tm = {run: false, start: 0, acc: 0, id: 0, lock: null};
+function hiitCard(it, kk, e, dn){
+  buildSegs(it.intervals);
+  return `<article class="ex hiit${dn}" data-k="${kk}"><div class="r1"><h3>${esc(it.name)}</h3><span>3 days a week, never on leg day</span></div>
+  <div class="simple"><p class="hint" style="margin:0;align-self:center">Warm up 3-5 min, run the intervals below, then cool down 3-5 min.</p><button class="chk" data-f="d" aria-label="Mark done">✓</button></div>
+  <ul class="iv">${it.intervals.map(iv => `<li data-n="${esc(iv.name)}"><span>${esc(iv.name)}</span><span>${esc(iv.target)}</span></li>`).join("")}</ul></article>`;
+}
+function tick(){
+  const el = Math.min(1200, tm.acc + (tm.run ? (Date.now() - tm.start) / 1000 : 0));
+  const left = 1200 - el, s = segs.find(x => el >= x.a && el < x.b) || segs[segs.length - 1];
+  const c = $("tclk"); if (!c) return;
+  c.textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")}`;
+  if (tm.run || tm.acc) {
+    const sl = Math.ceil(s.b - el);
+    $("tseg").textContent = el >= 1200 ? "Done. Cool down 3-5 min" : `${s.t} · ${sl}s left`;
+    document.querySelectorAll(".iv li").forEach(li => li.classList.toggle("on", li.dataset.n === s.name && el < 1200));
+  }
+  if (el >= 1200 && tm.run) { tm.run = false; tm.acc = 1200; clearInterval(tm.id); $("tgo").textContent = "Start"; releaseLock(); }
+}
+async function getLock(){ try { tm.lock = await navigator.wakeLock?.request("screen"); } catch (e) {} }
+function releaseLock(){ try { tm.lock?.release(); } catch (e) {} tm.lock = null; }
+
+/* Saving */
+let db = null, ref = null, writing = false, again = false, timer = 0, remoteOk;
+function saveLocal(){ try { localStorage.setItem("linemanlog", JSON.stringify({logs, ui})); } catch (e) {} }
+function queueSave(){ saveLocal(); dirty = true; clearTimeout(timer); timer = setTimeout(flush, 700); }
+async function flush(){
+  if (!ref) { status("Saved on this phone", remoteOk === false); dirty = false; return; }
+  if (writing) { again = true; return; }
+  writing = true; status("Saving…");
+  try { await ref.set({v: 1, logs, ui}); status("Saved"); dirty = false; }
+  catch (e) { status("Couldn't sync. Saved on this phone", true); }
+  writing = false; if (again) { again = false; flush(); }
+}
+function status(t, warn){ if (t === "Saved on this phone only" || t === "Saved on this phone") t = "Saved on phone";  const s = $("status"); s.textContent = t; s.classList.toggle("warn", !!warn); }
+
+document.addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  if (b.dataset.w) { ui.week = +b.dataset.w; resetTimer(); queueSave(); renderNav(); renderDay(); window.scrollTo(0, 0); return; }
+  if (b.dataset.d) { ui.day = +b.dataset.d; resetTimer(); queueSave(); renderNav(); renderDay(); window.scrollTo(0, 0); return; }
+  if (b.dataset.f === "tr") { ev.preventDefault(); const k = b.closest(".ex").dataset.k; if (logs[k]) delete logs[k].t; queueSave(); renderDay(); return; }
+  if (b.dataset.f === "d") {
+    const k = b.closest(".ex").dataset.k, e = logs[k] = logs[k] || {}; e.d = !e.d;
+    b.closest(".ex").classList.toggle("done", e.d); queueSave(); renderNav(); return;
+  }
+  if (b.id === "tgo") {
+    if (tm.run) { tm.acc += (Date.now() - tm.start) / 1000; tm.run = false; clearInterval(tm.id); b.textContent = "Resume"; releaseLock(); }
+    else { if (tm.acc >= 1200) tm.acc = 0; tm.run = true; tm.start = Date.now(); tm.id = setInterval(tick, 250); b.textContent = "Pause"; getLock(); tick(); }
+    return;
+  }
+  if (b.id === "treset") { resetTimer(); renderDay(); return; }
+  if (b.id === "copy") copyCsv();
+  if (b.id === "bk") saveBackup("json");
+  if (b.id === "bkc") saveBackup("csv");
+});
+function resetTimer(){ clearInterval(tm.id); releaseLock(); tm = {run: false, start: 0, acc: 0, id: 0, lock: null}; }
+document.addEventListener("input", ev => {
+  const i = ev.target; if (!i.dataset.f) return;
+  const k = i.closest(".ex").dataset.k, e = logs[k] = logs[k] || {};
+  e[i.dataset.f] = i.value.trim();
+  if (i.dataset.f === "t") { memo.clear(); i.classList.toggle("ovr", +e.t > 0); if (!(+e.t > 0)) delete e.t; }
+  queueSave();
+});
+
+async function deliver(blob, name, kind){
+  const msg = t => { $("bkmsg").textContent = t; };
+  const type = kind === "csv" ? "text/csv" : "application/json";
+  const file = new File([blob], name, {type});
+  if (navigator.canShare && navigator.share) {
+    let ok = false; try { ok = navigator.canShare({files: [file]}); } catch (e) {}
+    if (ok) {
+      try { await navigator.share({files: [file], title: name}); msg(`Backup ready: ${name}. If you chose Save to Files or a storage app, it's saved there.`); return; }
+      catch (e) { if (e && e.name === "AbortError") { msg("Backup not saved. Tap the button again when ready."); return; } }
+    }
+  }
+  if (window.showSaveFilePicker) {
+    try {
+      const h = await window.showSaveFilePicker({suggestedName: name, types: [{description: kind === "csv" ? "CSV file" : "JSON file", accept: {[type]: ["." + kind]}}]});
+      const w = await h.createWritable(); await w.write(blob); await w.close(); msg(`Backup saved: ${name}`); return;
+    } catch (e) { if (e && e.name === "AbortError") { msg("Backup not saved. Tap the button again when ready."); return; } }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  msg(`Backup downloaded: ${name}. Check your Downloads folder.`);
+}
+function saveBackup(kind){
+  const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  memo.clear();
+  const blob = kind === "csv" ? new Blob(["\ufeff" + buildCsv()], {type: "text/csv"})
+    : new Blob([JSON.stringify({app: "linemanlog", v: 1, saved: d.toISOString(), logs, ui}, null, 1)], {type: "application/json"});
+  deliver(blob, `lineman-log-backup-${stamp}.${kind}`, kind);
+}
+function parseCsv(t){
+  const rows = []; let row = [], f = "", q = false;
+  t = t.replace(/^\ufeff/, "").replace(/\r\n?/g, "\n");
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) { if (c === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { row.push(f); f = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && t[i + 1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; }
+    else f += c;
+  }
+  if (f !== "" || row.length) { row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim() !== ""));
+}
+function logsFromCsv(text){
+  const rows = parseCsv(text); if (rows.length < 2) throw 0;
+  const h = rows[0].map(x => x.trim().toLowerCase()), col = n => h.indexOf(n);
+  const cW = col("week"), cD = col("day"), cE = col("exercise"), cWt = col("weight"), cR = col("reps"),
+        cDn = col("done"), cN = col("notes"), cO = col("target override"), cT = col("target wt");
+  if (cW < 0 || cE < 0 || cWt < 0) throw 0;
+  const days = Object.values(SHORT), out = {}; let n = 0;
+  for (const r of rows.slice(1)) {
+    const g = i => (i >= 0 && r[i] != null ? String(r[i]).trim() : ""), ex = g(cE), wk = g(cW);
+    if (!ex) continue;
+    if (wk.toLowerCase() === "weigh-in") { if (g(cWt) && /^\d{4}-\d\d-\d\d$/.test(g(cD))) { out[`bw|${g(cD)}`] = {w: g(cWt)}; n++; } continue; }
+    if (wk.toLowerCase() === "habit") { const i = HABITS.indexOf(ex); if (i >= 0 && /^\d{4}-\d\d-\d\d$/.test(g(cD))) { out[`hab|${g(cD)}|${i}`] = {d: true}; n++; } continue; }
+    if (ex === "Zone 2 Ride") { const w = parseInt(wk, 10), d = g(cD) === "Sat" ? 5 : g(cD) === "Sun" ? 6 : -1, z = Z2.find(q => q[1] === g(col("target"))), e = {};
+      if (z) e.r = z[0]; if (["yes", "true", "x", "1", "done"].includes(g(cDn).toLowerCase())) e.d = true; if (g(cN)) e.n = g(cN);
+      if (w >= 1 && w <= 18 && d > 0 && Object.keys(e).length) { out[`${w}|${d}|Z2`] = e; n++; } continue; }
+    if (wk.toLowerCase() === "start") { const v = g(cWt) || g(cT); if (v) { out["start|" + ex] = {w: v}; n++; } continue; }
+    const w = parseInt(wk, 10); if (!(w >= 1 && w <= P.weeks.length)) continue;
+    let di = days.indexOf(g(cD)), it = di >= 0 ? P.weeks[w - 1][di].items.find(x => x.name === ex) : null;
+    if (!it) P.weeks[w - 1].forEach((d, i) => { if (!it) { const f = d.items.find(x => x.name === ex); if (f) { it = f; di = i; } } });
+    if (!it) continue;
+    const e = {}, wt = g(cWt), rp = g(cR), dn = g(cDn).toLowerCase(), nt = g(cN), ov = g(cO);
+    if (wt) e.w = wt; if (rp) e.r = rp; if (["yes", "true", "x", "1", "done"].includes(dn)) e.d = true; if (nt) e.n = nt; if (+ov > 0) e.t = ov;
+    if (Object.keys(e).length) { out[key(w, ex, di, it.kind)] = e; n++; }
+  }
+  return {logs: out, n};
+}
+document.addEventListener("change", ev => {
+  const t = ev.target, hk = t.dataset && t.dataset.hab, zk = t.dataset && t.dataset.z2;
+  if (hk) { if (t.checked) logs[hk] = {d: true}; else delete logs[hk]; queueSave(); renderDay(); return; }
+  const ek = t.closest && t.closest(".ex") && t.closest(".ex").dataset.k;
+  if (ek && ek.startsWith("bw|")) { renderBody(); return; }
+  if (zk) { const e = logs[zk] || {}; if (t.value) e.r = t.value; else delete e.r; if (Object.keys(e).length) logs[zk] = e; else delete logs[zk]; queueSave(); renderDay(); return; }
+});
+document.addEventListener("change", async ev => {
+  if (ev.target.id !== "rs" || !ev.target.files[0]) return;
+  const file = ev.target.files[0];
+  try {
+    const text = await file.text();
+    if (/\.csv$/i.test(file.name) || !text.trim().startsWith("{")) {
+      const res = logsFromCsv(text); logs = res.logs;
+      $("bkmsg").textContent = `Backup restored from CSV (${res.n} entries).`;
+    } else {
+      const d = JSON.parse(text);
+      if (d.app !== "linemanlog" || typeof d.logs !== "object") throw 0;
+      logs = d.logs; ui = Object.assign(ui, d.ui || {});
+      $("bkmsg").textContent = "Backup restored.";
+    }
+    if (!(ui.day >= 0 && ui.day <= 6)) ui.day = 0;
+    saveLocal(); memo.clear(); renderNav(); renderDay();
+  } catch (e) { $("bkmsg").textContent = "That file isn't a Lineman Log backup."; }
+  ev.target.value = "";
+});
+function buildCsv(){
+  const rows = [["Week", "Day", "Workout", "Exercise", "Target", "Target Wt", "Weight", "Reps", "Done", "Notes", "Target Override"]];
+  P.weeks.forEach((wk, wi) => wk.forEach((d, di) => d.items.forEach(it => {
+    const e = logs[key(wi + 1, it.name, di, it.kind)] || {}, t = it.kind === "lift" ? target(wi + 1, it.name) : null;
+    rows.push([wi + 1, SHORT[d.day], NICE(d.workout), it.name, it.target, t ? fmt(t) : "", e.w || "", e.r || "", e.d ? "Yes" : "", e.n || "", e.t || ""]);
+  })));
+  Object.keys(logs).filter(k => k.startsWith("start|") && logs[k].w).forEach(k => rows.push(["Start", "", "", k.slice(6), "Starting weight", "", logs[k].w, "", "", "", ""]));
+  P.weeks.forEach((wk, wi) => [5, 6].forEach(d => { const e = logs[`${wi + 1}|${d}|Z2`]; if (e) rows.push([wi + 1, d === 5 ? "Sat" : "Sun", "Zone 2", "Zone 2 Ride", e.r && Z2BY[e.r] ? Z2BY[e.r][1] : "", "", "", "", e.d ? "Yes" : "", e.n || "", ""]); }));
+  WEIGH.forEach(([dt, lab]) => { const v = (logs[`bw|${dt}`] || {}).w; if (v) rows.push(["Weigh-in", dt, "", lab, "Body weight", "", v, "", "", "", ""]); });
+  Object.keys(logs).filter(k => k.startsWith("hab|") && logs[k].d).sort().forEach(k => { const [, dt, i] = k.split("|"); rows.push(["Habit", dt, "", HABITS[+i] || i, "", "", "", "", "Yes", "", ""]); });
+  return rows.map(r => r.map(v => /[",\n\r]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(",")).join("\n");
+}
+async function copyCsv(){
+  memo.clear(); const t = buildCsv(), ta = $("csv");
+  try { await navigator.clipboard.writeText(t); $("copy").textContent = "Copied"; setTimeout(() => $("copy").textContent = "Copy as CSV", 1800); }
+  catch (e) { ta.hidden = false; ta.value = t; ta.select(); $("copy").textContent = "Select all and copy below"; }
+}
+
+renderNav(); renderDay(); status("Saved on phone");
+
+try { navigator.storage?.persist?.(); } catch (e) {}
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>
